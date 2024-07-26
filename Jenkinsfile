@@ -1,49 +1,37 @@
 pipeline {
+agent any
 
-  environment {
-    dockerimagename = "thetips4you/nodeapp"
-    dockerImage = ""
-  }
+environment {
+      sonar_url = 'http://172.31.8.11:9000'
+      sonar_username = 'admin'
+      sonar_password = 'admin'
+ } 
 
-  agent any
+tools {
+jdk 'java'
+maven 'maven'
+}
 
-  stages {
-
-    stage('Checkout Source') {
-      steps {
-        git 'https://github.com/shazforiot/nodeapp_test.git'
-      }
-    }
-
-    stage('Build image') {
+stages{ 
+    stage('git-checkout'){
       steps{
-        script {
-          dockerImage = docker.build dockerimagename
-        }
+        git branch: 'main',
+        url: 'https://github.com/kosurumuniraja/Jenkins-integration-with-kubernetes.git'
       }
     }
-
-    stage('Pushing Image') {
-      environment {
-               registryCredential = 'dockerhublogin'
+    stage('maven build'){
+      steps{
+        sh 'mvn clean package'
+      }
+    }
+    stage ('Sonarqube Analysis'){
+           steps {
+           withSonarQubeEnv('Sonarqube') {
+           sh '''
+           mvn -e -B sonar:sonar -Dsonar.java.source=1.8 -Dsonar.host.url="${sonar_url}" -Dsonar.login="${sonar_username}" -Dsonar.password="${sonar_password}" -Dsonar.sourceEncoding=UTF-8
+           '''
            }
-      steps{
-        script {
-          docker.withRegistry( 'https://registry.hub.docker.com', registryCredential ) {
-            dockerImage.push("latest")
-          }
-        }
-      }
-    }
-
-    stage('Deploying App to Kubernetes') {
-      steps {
-        script {
-          kubernetesDeploy(configs: "deploymentservice.yml", kubeconfigId: "kubernetes")
-        }
-      }
-    }
-
-  }
-
+         }
+      } 
+}
 }
